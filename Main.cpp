@@ -64,7 +64,7 @@ int main() {
                       << std::endl;
         }
 
-        // Quick sanity check that SQL works:
+        // Quick check that SQL works:
         session.sql("SELECT 1").execute();
 
         std::cout << "Connected successfully!" << std::endl;
@@ -170,14 +170,47 @@ int main() {
                 cout << "Valid email example: johnsmith@outlook.com\n";
                 cout << "Please enter your email: ";
                 cin >> Email;}
-        }
 
-            //mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
 
-            //Create Account and add to database later
+
+            mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+
+            mysqlx::Schema DB = session.getSchema("PantryPal");
+
+            mysqlx::Table Users = DB.getTable("User");
+
+            auto Read = Users
+            .select("Email")
+            .where("Email = :email")
+            .bind("email", Email)
+            .execute();
+
+            if (Read.count() > 0) {
+                cout << "Email already in use.\n";
+                validEmail = false;
+                cout << "Enter a different email: ";
+                cin >> Email;
+            }
+
+
+            else {
+                Users
+                .insert("Username", "Email", "Password")
+                .values(Username, Email, Password)
+                .execute();
 
             cout << "Account created successfully!" << endl;
             cout << "Welcome to The Pantry Pal: " << Username << endl;
+            }
+
+        }
+
+       /*Item entity code goes here (
+            Create
+            Read
+            Update
+            Destroy
+       */
 
       UsingApp = false;
     }
@@ -188,19 +221,52 @@ else if (UsersResponse == 'N' || UsersResponse == 'n') {
         cout << "Would you like to log into an existing account (Y/N)";
         cin >> UsersResponse;
         if (UsersResponse == 'Y' || UsersResponse == 'y') {
-            cout << "Please enter your email: ";
+
+            mysqlx::Session session ("127.0.0.1", 33060, "root", "noelmehari1");
+
+            mysqlx::Schema DB = session.getSchema("PantryPal");
+
+            mysqlx::Table Users = DB.getTable("User");
+
+            cout << "\nPlease enter your Email: ";
             cin >> Email;
 
-            //mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+            auto Read = Users
+            .select("Password")
+            .where("Email = :email")
+            .bind("email", Email)
+            .execute();
 
-            //log into existing account and do later
+            if (Read.count() == 0) {
+                cout << "Email not found. Please try again." << endl;
+            }
+            else {
+                cout << "Please enter your password: ";
+                cin >> Password;
+                mysqlx::Row row = Read.fetchOne();
+               string storedPassword = row[0].get<string>();
+
+               for (size_t i = 3; i > 0; i--) {
+                   if (Password == storedPassword) {
+                       cout << "Password is correct!" << endl;
 
 
-            cout << "\nPlease enter your password: ";
-            cin >> Password;
 
-            cout << "Account logged in successfully!" << endl;
-            cout << "Welcome back to The Pantry Pal: " << Username << endl;
+                       cout << "Account logged in successfully!" << endl;
+                       cout << "Welcome back to The Pantry Pal: " << Username << endl;
+                       break;
+                   }
+                   else {
+                       cout << "Password is incorrect!" << endl;
+                       cout << "Please try again. (Attempts remaining: " << i << ")" << endl;
+                       cout << "Please enter your password: ";
+                       cin >> Password;
+                       if (i == 1) {
+                           UsingApp = false;
+                       }
+                   }
+               }
+            }
 
             UsingApp = false; //change later
         }

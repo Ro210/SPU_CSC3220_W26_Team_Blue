@@ -11,15 +11,15 @@ User::User() {
 }
 
 void User::setEmail(string email) {
-email = Email;
+Email = email;
  }
 
 void User::setPassword(string password) {
-password = Password;
+ Password = password;
  }
 
 void User::setUsername(string username) {
-username = Username;
+Username = username;
 
  }
 
