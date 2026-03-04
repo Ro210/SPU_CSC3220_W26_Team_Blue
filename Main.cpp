@@ -5,7 +5,6 @@
 // Created by Noel Mehari on 2/25/26.
 //
 #include <mysqlx/xdevapi.h>
-#include "User.h"
 #include <iostream>
 #include <algorithm>
 #include <string>
@@ -18,7 +17,7 @@ using std::string;
 using std::cin;
 using std::cerr;
 using std::isspace;
-
+using std::getline;
 
 void PasswordValidation() {
     cout <<
@@ -28,12 +27,65 @@ void PasswordValidation() {
         "Password must contain at least one lowercase letter\n"
         "Enter password here: ";
 }
+void itemMenu() {
+    cout << "1. Add items" << endl;
+    cout << "2. Update items" << endl;
+    cout << "3. Delete items" << endl;
+    cout << "4. Retrieve items" << endl;
+    cout << "Enter your choice: " << endl;
+}
 
+void updateItemMenu() {
+    cout << "1. Update item name" << endl;
+    cout << "2. Update item quantity" << endl;
+    cout << "3. Update item category" << endl;
+    cout << "4. Update item description" << endl;
+    cout << "Enter your choice: " << endl;
+}
+
+void printOptions() {
+    cout << "1. Do something else" << endl;
+    cout << "2. Quit" << endl;
+    cout << "Enter your option: " << endl;
+}
+
+bool validateLength(const string &name) {
+    if (name.length() > 254) {
+        cout << "Invalid length" << endl;
+        return false;
+    }
+    return true;
+}
+
+bool itemNameExists(const string &ItemName) {
+    mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+    mysqlx::Schema DB = session.getSchema("PantryPal");
+    mysqlx::Table Item = DB.getTable("Item");
+
+    auto Read = Item
+    .select("ItemName")
+    .where("ItemName = :item_name")
+    .bind("item_name", ItemName)
+    .execute();
+
+    if (Read.count() > 0) {
+        return true;
+    }
+
+    return false;
+}
+
+bool validateQuantity(const int &ItemQuant) {
+    if (ItemQuant >=0) {
+        return true;
+    }
+    return false;
+}
 
 int main() {
+
     try {
         mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
-
         session.sql("CREATE DATABASE IF NOT EXISTS PantryPal").execute();
         session.sql("USE PantryPal").execute();
 
@@ -44,6 +96,27 @@ int main() {
             "  created_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
             "  Email VARCHAR(255) UNIQUE NOT NULL,"
             "  Password VARCHAR(50) NOT NULL"
+            ")"
+        ).execute();
+
+        session.sql(
+            "CREATE TABLE IF NOT EXISTS Category ("
+            "  CatId INT AUTO_INCREMENT PRIMARY KEY,"
+            "  CatName VARCHAR(255) NOT NULL"
+            ")"
+        ).execute();
+
+        session.sql(
+            "CREATE TABLE IF NOT EXISTS Item ("
+            "  ItemId INT AUTO_INCREMENT PRIMARY KEY,"
+            "  UserId INT,"
+            "  FOREIGN KEY (Userid) references User(Userid),"
+            "  CatId INT,"
+            "  FOREIGN KEY (CatId) references Category(CatId),"
+            "  ItemName VARCHAR(255) NOT NULL,"
+            "  ItemQuant INT NOT NULL,"
+            "  ItemDesc VARCHAR(255),"
+            "  created_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
             ")"
         ).execute();
 
@@ -82,11 +155,15 @@ int main() {
     bool validEmail = false;
     char UsersResponse;
     bool UsingApp = true;
-    string Username, Email, Password;
-
+    string Username, Email, Password, ItemName, ItemDesc;
+    int choice, ItemQuant, option;
+    bool validChoice = false;
+    bool validItemName = false;
+    bool validItemQuant = false;
+    bool validItemDesc = false;
+    bool validOption = false;
 
     while (UsingApp) {
-
         cout << "Welcome to PantryPal" << endl;
         cout << "Would you like to create an account? (Y/N)" << endl;
         cin >> UsersResponse;
@@ -110,7 +187,9 @@ int main() {
 
                 if (Password.length() < 10 || Password.length() > 50) {
                     validpassword = false;
-                } else {
+                }
+
+                else {
 
                     for (size_t i = 0; i < Password.size(); i++) {
                         if (isdigit(Password[i]))  hasDigit = true;
@@ -127,91 +206,210 @@ int main() {
 
 
 
-        cout << "Please enter your email: " << endl;
-        cin >> Email;
+            cout << "Please enter your email: " << endl;
+            cin >> Email;
 
-        while (!validEmail) {
+            while (!validEmail) {
 
-            validEmail = true;
-
-
-            if (Email.length() > 254) {
-                validEmail = false;}
+                validEmail = true;
 
 
-            if (count(Email.begin(), Email.end(), '@') != 1) {
-                validEmail = false;}
-
-            if (Email.find('.') == -1) {
-                validEmail = false;}
-
-
-            size_t atPos = Email.find('@');
-            if (atPos == 0 || atPos == -1) {
-                validEmail = false;}
-
-            for (size_t i = 0; i < Email.size(); i++) {
-                if (isspace(Email[i])) {
-                    validEmail = false;
-                    break;}
-            }
-
-            if (validEmail) {
-                if (!(Email.ends_with("@gmail.com") ||
-                      Email.ends_with("@yahoo.com") ||
-                      Email.ends_with("@hotmail.com") ||
-                      Email.ends_with("@outlook.com"))) {
-
+                if (Email.length() > 254) {
                     validEmail = false;}
-            }
-
-            if (!validEmail) {
-                cout << "Invalid email\n";
-                cout << "Valid email example: johnsmith@outlook.com\n";
-                cout << "Please enter your email: ";
-                cin >> Email;}
 
 
+                if (count(Email.begin(), Email.end(), '@') != 1) {
+                    validEmail = false;}
 
-            mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
-
-            mysqlx::Schema DB = session.getSchema("PantryPal");
-
-            mysqlx::Table Users = DB.getTable("User");
-
-            auto Read = Users
-            .select("Email")
-            .where("Email = :email")
-            .bind("email", Email)
-            .execute();
-
-            if (Read.count() > 0) {
-                cout << "Email already in use.\n";
-                validEmail = false;
-                cout << "Enter a different email: ";
-                cin >> Email;
-            }
+                if (Email.find('.') == -1) {
+                    validEmail = false;}
 
 
-            else {
-                Users
-                .insert("Username", "Email", "Password")
-                .values(Username, Email, Password)
+                size_t atPos = Email.find('@');
+                if (atPos == 0 || atPos == -1) {
+                    validEmail = false;}
+
+                for (size_t i = 0; i < Email.size(); i++) {
+                    if (isspace(Email[i])) {
+                        validEmail = false;
+                        break;}
+                }
+
+                if (validEmail) {
+                    if (!(Email.ends_with("@gmail.com") ||
+                          Email.ends_with("@yahoo.com") ||
+                          Email.ends_with("@hotmail.com") ||
+                          Email.ends_with("@outlook.com"))) {
+
+                        validEmail = false;}
+                }
+
+                if (!validEmail) {
+                    cout << "Invalid email\n";
+                    cout << "Valid email example: johnsmith@outlook.com\n";
+                    cout << "Please enter your email: ";
+                    cin >> Email;
+                }
+
+
+
+                mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+
+                mysqlx::Schema DB = session.getSchema("PantryPal");
+
+                mysqlx::Table Users = DB.getTable("User");
+
+                auto Read = Users
+                .select("Email")
+                .where("Email = :email")
+                .bind("email", Email)
                 .execute();
 
-            cout << "Account created successfully!" << endl;
-            cout << "Welcome to The Pantry Pal: " << Username << endl;
+                if (Read.count() > 0) {
+                    cout << "Email already in use.\n";
+                    validEmail = false;
+                    cout << "Enter a different email: ";
+                    cin >> Email;
+                }
+
+
+                else {
+                    Users
+                    .insert("Username", "Email", "Password")
+                    .values(Username, Email, Password)
+                    .execute();
+
+                    cout << "Account created successfully!" << endl;
+                    cout << "Welcome to The Pantry Pal: " << Username << endl;
+                }
+
             }
 
-        }
+            /*Item entity code goes here (
+                Create
+                Read
+                Update
+                Destroy
+            */
 
-       /*Item entity code goes here (
-            Create
-            Read
-            Update
-            Destroy
-       */
+            itemMenu();
+            cin >> choice;
 
+            while (!validChoice) {
+                if (choice == 1) {
+                    cout << "Enter item name (Maximum characters is 255): " << endl;
+                    cin.ignore();
+                    getline(cin, ItemName);
+                    validItemName = validateLength(ItemName);
+                    while (!validItemName) {
+                        if (validateLength(ItemName) == true) {
+                            if (itemNameExists(ItemName) == true) {
+                                cout << "Item already exists" << endl;
+                            }
+                            break;
+                        }
+                        cout << "Enter a different item name: ";
+                        cin >> ItemName;
+                    }
+
+                    cout << "Enter item quantity: " << endl;
+                    cin >> ItemQuant;
+                    while (!validItemQuant) {
+                        validItemQuant = validateQuantity(ItemQuant);
+                        if (validItemQuant) {
+                            break;
+                        }
+                        cout << "Invalid number" << endl;
+                        cout << "Enter item quantity: " << endl;
+                        cin >> ItemQuant;
+                    }
+
+                    // userid catid
+
+                    cout << "Enter item description (Press Enter to skip): " << endl;
+                    cin.ignore();
+                    getline(cin, ItemDesc);
+                    if (ItemDesc != "") {
+                        while (!validItemDesc) {
+                            validItemDesc = validateLength(ItemDesc);
+                            if (validItemDesc) {
+                                break;
+                            }
+                            cout << "Enter item description (Press Enter to skip): " << endl;
+                            cin >> ItemDesc;
+                        }
+                    }
+                    else {
+                        cout << "Description skipped." << endl;
+                    }
+
+                    try {
+                        mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+
+                        mysqlx::Schema DB = session.getSchema("PantryPal");
+                        mysqlx::Table Item = DB.getTable("Item");
+
+                        Item.insert("ItemName", "ItemQuant", "ItemDesc")
+                            .values(ItemName, ItemQuant, ItemDesc)
+                            .execute(); // userid catid
+
+                        cout << "Item added successfully!" << endl;
+                    }
+                    catch (const mysqlx::Error &err) {
+                        cerr << "Connection error: " << err.what() << endl;
+                    }
+                }
+
+                else if (choice == 2) {
+                    cout << "Enter item name: " << endl;
+                    cin >> ItemName;
+
+                    while (!validItemName) {
+                        if (validateLength(ItemName) == true) {
+                            if (itemNameExists(ItemName) == true) {
+                                validItemName = true;
+                            }
+                        }
+
+                        if (validItemName) {
+                            break;
+                        }
+
+                        cout << "Item does not exist" << endl;
+                        cout << "Enter a different item name: ";
+                        cin >> ItemName;
+                        updateItemMenu();
+                        //update
+                    }
+                }
+                /*case 3: delete an item, delete all items
+                 *case 4: retrieve an item, retrieve all items
+                 */
+
+                else {
+                    cout << "Invalid choice" << endl;
+                    itemMenu();
+                    cin >> choice;
+                    break;
+                }
+
+                printOptions();
+                cin >> option;
+                while (!validOption) {
+                    if (option == 1) {
+                        itemMenu();
+                        cin >> choice;
+                        break;
+                    }
+                    if (option == 2) {
+                        validChoice = true;
+                        break;
+                    }
+                    cout << "Invalid option" << endl;
+                    printOptions();
+                    cin >> option;
+                }
+            }
       UsingApp = false;
     }
 
