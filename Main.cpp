@@ -544,9 +544,6 @@ int main() {
 
                             break;
                         }
-
-                        cout << "Invalid choice" << endl;
-                        updateItemMenu();
                     }
                 }
 
