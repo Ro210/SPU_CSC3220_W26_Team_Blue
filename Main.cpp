@@ -10,6 +10,7 @@
 #include <string>
 #include <string_view>
 #include <cctype>
+#include <limits>
 
 using std::cout;
 using std::endl;
@@ -17,7 +18,9 @@ using std::string;
 using std::cin;
 using std::cerr;
 using std::isspace;
-using std::getline;
+using std::numeric_limits;
+using std::streamsize;
+using std::max;
 
 void PasswordValidation() {
     cout <<
@@ -26,74 +29,6 @@ void PasswordValidation() {
         "Password must contain at least one uppercase letter\n"
         "Password must contain at least one lowercase letter\n"
         "Enter password here: ";
-}
-void itemMenu() {
-    cout << "1. Add items" << endl;
-    cout << "2. Update items" << endl;
-    cout << "3. Delete items" << endl;
-    cout << "4. Retrieve items" << endl;
-    cout << "Enter your choice: " << endl;
-}
-
-void updateItemMenu() {
-    cout << "1. Update item name" << endl;
-    cout << "2. Update item quantity" << endl;
-    cout << "3. Update item category" << endl;
-    cout << "4. Update item description" << endl;
-    cout << "Enter your choice: " << endl;
-}
-
-void printOptions() {
-    cout << "1. Do something else" << endl;
-    cout << "2. Quit" << endl;
-    cout << "Enter your option: " << endl;
-}
-
-bool validateLength(const string &name) {
-    if (name.length() > 254) {
-        return false;
-    }
-    return true;
-}
-
-bool itemNameExists(const string &ItemName, const int &UserId) {
-    mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
-    mysqlx::Schema DB = session.getSchema("PantryPal");
-    mysqlx::Table Item = DB.getTable("Item");
-
-    auto Read = Item
-    .select("ItemName")
-    .where("ItemName = :item_name and UserId = :user_id") // where user id = user id
-    .bind("item_name", ItemName)
-    .bind("user_id", UserId)
-    .execute();
-
-    if (Read.count() > 0) {
-        return true;
-    }
-
-    return false;
-}
-
-bool validateQuantity(const int &ItemQuant) {
-    if (ItemQuant >=0) {
-        return true;
-    }
-    return false;
-}
-
-int findItemId(mysqlx::Table &Item, const string &ItemName) {
-    auto result = Item.select("ItemID")
-    .where("ItemName = :item_name") // and user id = user id
-    .bind("item_name", ItemName)
-    .execute();
-
-    auto row = result.fetchOne();
-
-    if (row) {
-        return row[0];
-    }
-    return -1;
 }
 
 int findUserId(mysqlx::Table &Users, const string &Email) {
@@ -110,9 +45,860 @@ int findUserId(mysqlx::Table &Users, const string &Email) {
     return -1;
 }
 
+int findItemId(mysqlx::Table &Item, const string &ItemName) {
+    auto result = Item.select("ItemID")
+    .where("ItemName = :item_name") // and user id = user id
+    .bind("item_name", ItemName)
+    .execute();
+
+    auto row = result.fetchOne();
+
+    if (row) {
+        return row[0];
+    }
+    return -1;
+}
+
+bool validateLength(const string &name) {
+    if (name.length() > 254) {
+        return false;
+    }
+    return true;
+}
+
+bool itemExists(const string &ItemName, const int &UserId) {
+    mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+    mysqlx::Schema DB = session.getSchema("PantryPal");
+    mysqlx::Table Item = DB.getTable("Item");
+
+    auto Read = Item
+    .select("ItemName")
+    .where("ItemName = :item_name and UserId = :user_id")
+    .bind("item_name", ItemName)
+    .bind("user_id", UserId)
+    .execute();
+
+    if (Read.count() > 0) {
+        return true;
+    }
+
+    return false;
+}
+
+bool categoryExists(const string &CatName, const int &UserId) {
+    mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+    mysqlx::Schema DB = session.getSchema("PantryPal");
+    mysqlx::Table Category = DB.getTable("Category");
+
+    auto Read = Category
+    .select("CatName")
+    .where("CatName = :cat_name and UserId = :user_id")
+    .bind("cat_name", CatName)
+    .bind("user_id", UserId)
+    .execute();
+
+    if (Read.count() > 0) {
+        return true;
+    }
+
+    return false;
+}
+
+void viewItems(const int &UserId) {}
+
+void addItem(const int &UserId) {
+    int ItemQuant, option;
+    string ItemName, ItemDesc, ItemCategory;
+
+    while (true) {
+        cout << "\n=== Add Item ===\n";
+
+        // get item name
+
+        while (true) {
+            cout << "\nEnter item name (Maximum characters is 254): ";
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            getline(cin, ItemName);
+            if (!validateLength(ItemName)) {
+                cout << "Item name too long" << endl;
+            }
+            else if (itemExists(ItemName, UserId)) {
+                cout << "Item already exists" << endl;
+            }
+            else {
+                break;
+            }
+        }
+
+        // get item quantity
+        while (true) {
+            cout << "Enter item quantity: ";
+            if (!(cin >> ItemQuant)) {
+                cin.clear();
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                cout << "Invalid input!" << endl;
+                cout << "Please enter a number" << endl;
+                continue;
+            }
+            break;
+        }
+
+        // get item category
+        /*cout << "Enter item category: " << endl;
+         *if not exist
+         *1. create new category
+         *2. enter other category
+         *find cat id
+         *CatId = findCatId(Category, ItemCat)
+         */
+
+        // get item description
+
+        while (true) {
+            cout << "Enter item description (Press Enter to skip): ";
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            getline(cin, ItemDesc);
+            if (ItemDesc == "") {
+                cout << "Description skipped" << endl;
+                break;
+            }
+            if (validateLength(ItemDesc)) {
+                break;
+            }
+            cout << "Item description too long" << endl;
+        }
+
+        // add item
+        try {
+            mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+            mysqlx::Schema DB = session.getSchema("PantryPal");
+            mysqlx::Table Item = DB.getTable("Item");
+
+            Item.insert("UserId", "ItemName", "ItemQuant", "ItemDesc")
+                .values(UserId, ItemName, ItemQuant, ItemDesc)
+                .execute(); // missing catid
+
+            cout << "\nItem added successfully!" << endl;
+        }
+        catch (const mysqlx::Error &err) {
+            cerr << "\nConnection error: " << err.what() << endl;
+        }
+
+        while (true) {
+            cout << "\n1. Add another item" << endl;
+            cout << "2. Back to main menu" << endl;
+            cout << "Enter your choice: ";
+
+            if (!(cin >> option)) {
+                cout << "Invalid input!" << endl;
+                cout << "Please enter a number" << endl;
+                cin.clear();
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                continue;
+            }
+
+            if (option != 1 && option != 2) {
+                cout << "Invalid choice" << endl;
+                continue;
+            }
+
+            break;
+        }
+
+        if (option == 1) {
+            continue;
+        }
+        if (option == 2) {
+            break;
+        }
+    }
+}
+
+void updateItem(const int &UserId) {
+
+    int choice, ItemId, ItemQuant, newItemQuant, option;
+    string ItemName, ItemCategory, ItemDesc, newItemName, newItemCat, newItemDesc;
+    // include case when there's no item to update
+
+    while (true) {
+
+        cout << "\n=== Update Item ===\n";
+        // get item name
+
+        while (true) {
+            cout << "Enter item name: ";
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            getline(cin, ItemName);
+            if (itemExists(ItemName, UserId)) {
+                break;
+            }
+            cout << "\nItem does not exist" << endl;
+        }
+
+        // print item details TO BE IMPLEMENT
+
+        while (true) {
+
+            cout << "\n1. Update item name" << endl;
+            cout << "2. Update item quantity" << endl;
+            cout << "3. Update item category" << endl;
+            cout << "4. Update item description" << endl;
+            cout << "5. Done updating" << endl;
+            cout << "Enter your choice: ";
+
+            if (!(cin >> choice)) {
+                cout << "\nInvalid input!" << endl;
+                cout << "Please enter a number" << endl;
+                cin.clear();
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                continue;
+            }
+
+            // find item id
+            try {
+                mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+                mysqlx::Schema DB = session.getSchema("PantryPal");
+                mysqlx::Table Item = DB.getTable("Item");
+
+                ItemId = findItemId(Item, ItemName);
+            }
+            catch (const mysqlx::Error &err) {
+                cerr << "\nConnection error: " << err.what() << endl;
+            }
+
+            if (choice == 1) { // update item name
+
+                // get new item name
+                while (true) {
+                    cout << "Enter new item name (Maximum characters is 254): ";
+                    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                    getline(cin, newItemName);
+                    if (!validateLength(newItemName)) {
+                        cout << "\nItem name too long" << endl;
+                    }
+                    else if (newItemName == ItemName) {
+                        break;
+                    }
+                    else if (itemExists(newItemName, UserId)) {
+                        cout << "\nItem already exists" << endl;
+                    }
+                    else {
+                        break;
+                    }
+                }
+
+                // update item name
+                try {
+                    mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+                    mysqlx::Schema DB = session.getSchema("PantryPal");
+                    mysqlx::Table Item = DB.getTable("Item");
+
+                    if (newItemName == ItemName) {
+                        cout << "\nNo change was made" << endl;
+                    }
+
+                    else if (ItemId != -1) {
+                        Item.update()
+                            .set("ItemName", newItemName)
+                            .where("ItemId = :item_id AND UserId = :user_id")
+                            .bind("item_id", ItemId)
+                            .bind ("user_id", UserId)
+                            .execute();
+                        cout << "\nItem name changed successfully!" << endl;
+                        ItemName = newItemName;
+                    }
+
+                    else {
+                        cout << "\nItem not found" << endl;
+                    }
+                }
+                catch (const mysqlx::Error &err) {
+                    cerr << "\nConnection error: " << err.what() << endl;
+                }
+            }
+
+            else if (choice == 2) { // update item quantity
+
+                // get new item quantity
+                while (true) {
+                    cout << "Enter new item quantity: ";
+                    if (!(cin >> newItemQuant)) {
+                        cout << "\nInvalid input!" << endl;
+                        cout << "Please enter a number" << endl;
+                        cin.clear();
+                        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                        continue;
+                    }
+                    break;
+                }
+
+                // update item quantity
+                try {
+                    mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+                    mysqlx::Schema DB = session.getSchema("PantryPal");
+                    mysqlx::Table Item = DB.getTable("Item");
+
+                    if (newItemQuant == ItemQuant) {
+                        cout << "\nNo change was made" << endl;
+                    }
+
+                    else if (ItemId != -1) {
+                        Item.update()
+                            .set("ItemQuant", newItemQuant)
+                            .where("ItemId = :item_id and UserId = :user_id")
+                            .bind("item_id", ItemId)
+                            .bind("user_id", UserId)
+                            .execute();
+                        cout << "\nItem quantity changed successfully!" << endl;
+                        ItemQuant = newItemQuant;
+                    }
+
+                    else {
+                        cout << "\nItem not found" << endl;
+                    }
+
+                }
+                catch (const mysqlx::Error &err) {
+                    cerr << "\nConnection error: " << err.what() << endl;
+                }
+            }
+
+            else if (choice == 3) {
+                // update item category
+                /*find itemid
+                 *ItemId = findItemId(Item, ItemName)
+                 *get catid
+                 *cout << "Enter new item category << endl;
+                 *while (getline(cin, ItemCat)
+                 *check if length is valid;
+                 */
+            }
+
+            else if (choice == 4) { // update item description
+
+                // get item description
+                // include case when new item desc same as before TO BE IMPLEMENT
+                while (getline(cin, newItemDesc)) {
+                    cout << "Enter new item description: ";
+                    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                    if (validateLength(ItemDesc)) {
+                        break;
+                    }
+                    cout << "\nItem description too long" << endl;
+                }
+
+                //update item description
+                try {
+                    mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+                    mysqlx::Schema DB = session.getSchema("PantryPal");
+                    mysqlx::Table Item = DB.getTable("Item");
+
+                    if (newItemDesc == ItemDesc) {
+                        cout << "\nNo change was made" << endl;
+                    }
+
+                    else if (ItemId != -1) {
+                        Item.update()
+                            .set("ItemDesc", newItemDesc)
+                            .where("ItemId = :item_id and UserId = :user_id")
+                            .bind("item_id", ItemId)
+                            .bind("user_id", UserId)
+                            .execute();
+                        cout << "\nItem description changed successfully!" << endl;
+                    }
+
+                    else {
+                        cout << "\nItem not found" << endl;
+                    }
+
+                }
+                catch (const mysqlx::Error &err) {
+                    cerr << "Connection error: " << err.what() << endl;
+                }
+            }
+
+            else if (choice == 5) {
+                break;
+            }
+
+            else {
+                cout << "Invalid choice" << endl;
+            }
+        }
+
+        while (true) {
+            cout << "\n1. Update another item" << endl;
+            cout << "2. Back to main menu" << endl;
+            cout << "Enter your choice: ";
+
+            if (!(cin >> option)) {
+                cout << "\nInvalid input!" << endl;
+                cout << "Please enter a number" << endl;
+                cin.clear();
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                continue;
+            }
+
+            if (option != 1 && option != 2) {
+                cout << "\nInvalid choice" << endl;
+                continue;
+            }
+
+            break;
+        }
+
+        if (option == 1) {
+            continue;
+        }
+        if (option == 2) {
+            break;
+        }
+    }
+}
+
+void deleteItem(const int &UserId) {
+    int option;
+    char answer;
+    string ItemName;
+
+    while (true) {
+        cout << "\n=== Delete Item ===\n";
+
+        // include case when there's no item to delete TO BE IMPLEMENT
+        // get item name
+        while (true) {
+            cout << "Enter item name: ";
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            getline(cin, ItemName);
+            if (itemExists(ItemName, UserId)) {
+                break;
+            }
+            cout << "\nItem does not exist" << endl;
+        }
+
+        // confirm
+        while (true) {
+            cout << "\nDelete this item? (Y/N)" << endl;
+            cin >> answer;
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+            if ((answer == 'Y') || (answer == 'y')) {
+                // delete item
+                // TO BE IMPLEMENT
+                break;
+            }
+
+            if ((answer == 'N') || (answer == 'n')) {
+                cout << "\nDeletion canceled" << endl;
+                break;
+            }
+
+            cout << "\nInvalid answer" << endl;
+        }
+
+        while (true) {
+            cout << "\n1. Delete another item" << endl;
+            cout << "2. Back to main menu" << endl;
+            cout << "Enter your choice: ";
+
+            if (!(cin >> option)) {
+                cout << "\nInvalid input!" << endl;
+                cout << "Please enter a number" << endl;
+                cin.clear();
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                continue;
+            }
+
+            if (option != 1 && option != 2) {
+                cout << "\nInvalid choice" << endl;
+                continue;
+            }
+
+            break;
+        }
+
+        if (option == 1) {
+            continue;
+        }
+
+        if (option == 2) {
+            break;
+        }
+    }
+}
+
+void deleteAllItems(const int &UserId) {
+    char answer;
+    string ItemName;
+
+    while (true) {
+        cout << "\n=== Delete All Items ===\n";
+
+        // include case when there's no item to delete
+
+        while (true) {
+            cout << "\nDelete all items? (Y/N)" << endl;
+            cin >> answer;
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+            if ((answer == 'Y') || (answer == 'y')) {
+                // delete item
+                // TO BE IMPLEMENT
+            }
+
+            else if ((answer == 'N') || (answer == 'n')) {
+                cout << "\nDeletion canceled" << endl;
+            }
+
+            else {
+                cout << "\nInvalid answer" << endl;
+            }
+            break;
+        }
+        break;
+    }
+}
+
+void viewCategories(const int &UserId) {}
+
+void addCategories(const int & UserId) {
+    int option;
+    string CatName;
+
+    while (true) {
+        cout << "\n=== Add Category ====\n";
+
+        // get category name
+
+        while (true) {
+            cout << "Enter category name (Maximum characters is 254): ";
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            getline(cin, CatName);
+            if (!validateLength(CatName)) {
+                cout << "\nCategory name too long" << endl;
+            }
+            else if (categoryExists(CatName, UserId)) {
+                cout << "\nCategory already exists" << endl;
+            }
+            else {
+                break;
+            }
+        }
+
+        // add category
+        try {
+            mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+            mysqlx::Schema DB = session.getSchema("PantryPal");
+            mysqlx::Table Category = DB.getTable("Category");
+
+            Category.insert("UserId", "CatName")
+                .values(UserId, CatName)
+                .execute(); // missing catid
+
+            cout << "\nCategory added successfully!" << endl;
+        }
+        catch (const mysqlx::Error &err) {
+            cerr << "\nConnection error: " << err.what() << endl;
+        }
+
+        while (true) {
+            cout << "\n1. Add another category" << endl;
+            cout << "2. Back to main menu" << endl;
+            cout << "Enter your choice: ";
+
+            if (!(cin >> option)) {
+                cout << "\nInvalid input!" << endl;
+                cout << "Please enter a number" << endl;
+                cin.clear();
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                continue;
+            }
+
+            if (option != 1 && option != 2) {
+                cout << "\nInvalid choice" << endl;
+                continue;
+            }
+
+            break;
+        }
+
+        if (option == 1) {
+            continue;
+        }
+        if (option == 2) {
+            break;
+        }
+    }
+}
+
+void updateCategories(const int &UserId) {
+    int option;
+    string CatName, newCatName;
+    // include case when there's no category to update
+
+    while (true) {
+        cout << "\n=== Update Category ===\n";
+
+        // get category name
+        while (true) {
+            cout << "Enter category name: ";
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            getline(cin, CatName);
+            if (categoryExists(CatName, UserId)) {
+                break;
+            }
+            cout << "\nCategory does not exist" << endl;
+        }
+
+        // get new category name
+        while (true) {
+            cout << "Enter new category name (Maximum characters is 254): ";
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            getline(cin, newCatName);
+            if (!validateLength(newCatName)) {
+                cout << "\nCategory name too long" << endl;
+            }
+            else if (newCatName == CatName) {
+                break;
+            }
+            else if (itemExists(newCatName, UserId)) {
+                cout << "\nCategory already exists" << endl;
+            }
+            else {
+                break;
+            }
+        }
+
+        // update category name
+        try {
+            mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+            mysqlx::Schema DB = session.getSchema("PantryPal");
+            mysqlx::Table Category = DB.getTable("Category");
+
+            if (newCatName == CatName) {
+                cout << "\nNo change was made" << endl;
+            }
+            Category.update()
+                .set("CatName", newCatName)
+                .where("CatName = :cat_name AND UserId = :user_id")
+                .bind("cat_name", CatName)
+                .bind ("user_id", UserId)
+                .execute();
+            cout << "\nCategory name changed successfully!" << endl;
+            CatName = newCatName;
+        }
+        catch (const mysqlx::Error &err) {
+            cerr << "\nConnection error: " << err.what() << endl;
+        }
+
+        while (true) {
+            cout << "\n1. Update another category" << endl;
+            cout << "2. Back to main menu" << endl;
+            cout << "Enter your choice: ";
+
+            if (!(cin >> option)) {
+                cout << "\nInvalid input!" << endl;
+                cout << "Please enter a number" << endl;
+                cin.clear();
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                continue;
+            }
+
+            if (option != 1 && option != 2) {
+                cout << "\nInvalid choice" << endl;
+                continue;
+            }
+
+            break;
+        }
+
+        if (option == 1) {
+            continue;
+        }
+        if (option == 2) {
+            break;
+        }
+    }
+
+}
+
+void deleteCategories(const int &UserId) {
+    int option;
+    char answer;
+    string CatName;
+
+    while (true) {
+        cout << "\n=== Delete Category ===\n";
+
+        // include case when there's no category to delete TO BE IMPLEMENT
+        // get category name
+        while (true) {
+            cout << "Enter category name: ";
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            getline(cin, CatName);
+            if (categoryExists(CatName, UserId)) {
+                break;
+            }
+            cout << "\nCategory does not exist" << endl;
+        }
+
+        // confirm
+        while (true) {
+            cout << "\nDelete this category? (Y/N)" << endl;
+            cin >> answer;
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+            if ((answer == 'Y') || (answer == 'y')) {
+                // delete category
+                // TO BE IMPLEMENT
+                break;
+            }
+
+            if ((answer == 'N') || (answer == 'n')) {
+                cout << "\nDeletion canceled" << endl;
+                break;
+            }
+
+            cout << "\nInvalid answer" << endl;
+        }
+
+        while (true) {
+            cout << "\n1. Delete another category" << endl;
+            cout << "2. Back to main menu" << endl;
+            cout << "Enter your choice: ";
+
+            if (!(cin >> option)) {
+                cout << "\nInvalid input!" << endl;
+                cout << "Please enter a number" << endl;
+                cin.clear();
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                continue;
+            }
+
+            if (option != 1 && option != 2) {
+                cout << "\nInvalid choice" << endl;
+                continue;
+            }
+
+            break;
+        }
+
+        if (option == 1) {
+            continue;
+        }
+
+        if (option == 2) {
+            break;
+        }
+    }
+}
+
+void categories(const int &UserId) {
+
+    int choice;
+
+    while (true) {
+
+        cout << "\n=== Categories ===\n";
+
+        while (true) {
+            cout << "\n1. View Categories" << endl;
+            cout << "2. Add Category" << endl;
+            cout << "3. Update Category" << endl;
+            cout << "4. Delete Category" << endl;
+            cout << "5. Back to main menu" << endl;
+            cout << "Enter your choice: ";
+
+            if (!(cin >> choice)) {
+                cout << "Invalid input!" << endl;
+                cout << "Please enter a number" << endl;
+                cin.clear();
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                continue;
+            }
+            break;
+        }
+
+        if (choice == 1) {
+            viewCategories(UserId);
+        }
+        else if (choice == 2) {
+            addCategories(UserId);
+        }
+        else if (choice == 3) {
+            updateCategories(UserId);
+        }
+        else if (choice == 4) {
+            deleteCategories(UserId);
+        }
+        else if (choice == 5) {
+            break;
+        }
+        else {
+            cout << "\nInvalid choice" << endl;
+        }
+    }
+}
+
+void mainMenu(const int &UserId) {
+
+    int choice;
+
+    while (true) {
+        cout << "\n====== PantryPal ======\n";
+
+        while (true) {
+            cout << "\n1. View items" << endl;
+            cout << "2. Add item" << endl;
+            cout << "3. Update item" << endl;
+            cout << "4. Delete items" << endl;
+            cout << "5. Delete all items" << endl;
+            cout << "6. Categories" << endl;
+            cout << "7. Exit" << endl;
+            cout << "Enter your choice: ";
+
+            if (!(cin >> choice)) {
+                cout << "Invalid input!" << endl;
+                cout << "Please enter a number" << endl;
+                cin.clear();
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                continue;
+            }
+            break;
+        }
+
+        if (choice == 1) {
+            viewItems(UserId);
+        }
+        else if (choice == 2) {
+            addItem(UserId);
+        }
+        else if (choice == 3) {
+            updateItem(UserId);
+        }
+        else if (choice == 4) {
+            deleteItem(UserId);
+        }
+        else if (choice == 5) {
+            deleteAllItems(UserId);
+        }
+        else if (choice == 6) {
+            categories(UserId);
+        }
+        else if (choice == 7) {
+            cout << "Goodbye!" << endl;
+            break;
+        }
+        else {
+            cout << "\nInvalid choice!" << endl;
+        }
+    }
+}
+
 int main() {
     try {
         mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+
         session.sql("CREATE DATABASE IF NOT EXISTS PantryPal").execute();
         session.sql("USE PantryPal").execute();
 
@@ -129,6 +915,8 @@ int main() {
         session.sql(
             "CREATE TABLE IF NOT EXISTS Category ("
             "  CatId INT AUTO_INCREMENT PRIMARY KEY,"
+            "  UserId INT,"
+            "  FOREIGN KEY (Userid) references User(Userid),"
             "  CatName VARCHAR(255) NOT NULL"
             ")"
         ).execute();
@@ -177,17 +965,16 @@ int main() {
         std::cerr << "Connection error: " << err.what() << std::endl;
     }
 
-
+    int UserId;
     bool validpassword = false;
     bool validEmail = false;
     char UsersResponse;
     bool UsingApp = true;
-    string Username, Email, Password, ItemName, ItemDesc, newItemName;
-    int choice, ItemQuant, option, UserId;
-    int ItemId = -1;
-    bool validChoice = false;
+    string Username, Email, Password;
+
 
     while (UsingApp) {
+
         cout << "Welcome to PantryPal" << endl;
         cout << "Would you like to create an account? (Y/N)" << endl;
         cin >> UsersResponse;
@@ -211,9 +998,7 @@ int main() {
 
                 if (Password.length() < 10 || Password.length() > 50) {
                     validpassword = false;
-                }
-
-                else {
+                } else {
 
                     for (size_t i = 0; i < Password.size(); i++) {
                         if (isdigit(Password[i]))  hasDigit = true;
@@ -230,412 +1015,161 @@ int main() {
 
 
 
-            cout << "Please enter your email: " << endl;
-            cin >> Email;
+        cout << "Please enter your email: " << endl;
+        cin >> Email;
 
-            while (!validEmail) {
+        while (!validEmail) {
 
-                validEmail = true;
+            validEmail = true;
 
 
-                if (Email.length() > 254) {
+            if (Email.length() > 254) {
+                validEmail = false;}
+
+
+            if (count(Email.begin(), Email.end(), '@') != 1) {
+                validEmail = false;}
+
+            if (Email.find('.') == -1) {
+                validEmail = false;}
+
+
+            size_t atPos = Email.find('@');
+            if (atPos == 0 || atPos == -1) {
+                validEmail = false;}
+
+            for (size_t i = 0; i < Email.size(); i++) {
+                if (isspace(Email[i])) {
+                    validEmail = false;
+                    break;}
+            }
+
+            if (validEmail) {
+                if (!(Email.ends_with("@gmail.com") ||
+                      Email.ends_with("@yahoo.com") ||
+                      Email.ends_with("@hotmail.com") ||
+                      Email.ends_with("@outlook.com"))) {
+
                     validEmail = false;}
+            }
 
-
-                if (count(Email.begin(), Email.end(), '@') != 1) {
-                    validEmail = false;}
-
-                if (Email.find('.') == -1) {
-                    validEmail = false;}
-
-
-                size_t atPos = Email.find('@');
-                if (atPos == 0 || atPos == -1) {
-                    validEmail = false;}
-
-                for (size_t i = 0; i < Email.size(); i++) {
-                    if (isspace(Email[i])) {
-                        validEmail = false;
-                        break;}
-                }
-
-                if (validEmail) {
-                    if (!(Email.ends_with("@gmail.com") ||
-                          Email.ends_with("@yahoo.com") ||
-                          Email.ends_with("@hotmail.com") ||
-                          Email.ends_with("@outlook.com"))) {
-
-                        validEmail = false;}
-                }
-
-                if (!validEmail) {
-                    cout << "Invalid email\n";
-                    cout << "Valid email example: johnsmith@outlook.com\n";
-                    cout << "Please enter your email: ";
-                    cin >> Email;
-                }
+            if (!validEmail) {
+                cout << "Invalid email\n";
+                cout << "Valid email example: johnsmith@outlook.com\n";
+                cout << "Please enter your email: ";
+                cin >> Email;}
 
 
 
-                mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+            mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
 
-                mysqlx::Schema DB = session.getSchema("PantryPal");
+            mysqlx::Schema DB = session.getSchema("PantryPal");
 
-                mysqlx::Table Users = DB.getTable("User");
+            mysqlx::Table Users = DB.getTable("User");
 
-                auto Read = Users
-                .select("Email")
-                .where("Email = :email")
-                .bind("email", Email)
+            auto Read = Users
+            .select("Email")
+            .where("Email = :email")
+            .bind("email", Email)
+            .execute();
+
+            if (Read.count() > 0) {
+                cout << "Email already in use.\n";
+                validEmail = false;
+                cout << "Enter a different email: ";
+                cin >> Email;
+            }
+
+
+            else {
+                Users
+                .insert("Username", "Email", "Password")
+                .values(Username, Email, Password)
                 .execute();
 
-                if (Read.count() > 0) {
-                    cout << "Email already in use.\n";
-                    validEmail = false;
-                    cout << "Enter a different email: ";
-                    cin >> Email;
-                }
+                UserId = findUserId(Users, Email);
 
-
-                else {
-                    Users
-                    .insert("Username", "Email", "Password")
-                    .values(Username, Email, Password)
-                    .execute();
-
-                    UserId = findUserId(Users, Email);
-
-                    cout << "Account created successfully!" << endl;
-                    cout << "Welcome to The Pantry Pal: " << Username << endl;
-                }
-
+            cout << "Account created successfully!" << endl;
+            cout << "Welcome to The Pantry Pal: " << Username << endl;
             }
 
-            /*Item entity code goes here (
-                Create
-                Read
-                Update
-                Destroy
-            */
-            itemMenu();
-            cin >> choice;
-
-            while (!validChoice) {
-
-                if (choice == 1) { // add item
-
-                    // get item name
-                    cout << "Enter item name (Maximum characters is 254): " << endl;
-                    cin.ignore();
-                    while (getline(cin, ItemName)) {
-                        if (!validateLength(ItemName)) {
-                            cout << "Item name too long" << endl;
-                        }
-                        else if (itemNameExists(ItemName, UserId)) {
-                            cout << "Item already exists" << endl;
-                        }
-                        else {
-                            break;
-                        }
-                        cout << "Enter item name (Maximum characters is 254): ";
-                    }
-
-                    // get item quantity
-                    cout << "Enter item quantity: " << endl;
-                    while (cin >> ItemQuant) {
-                        if (validateQuantity(ItemQuant)) {
-                            break;
-                        }
-                        cout << "Invalid number" << endl;
-                        cout << "Enter item quantity: " << endl;
-                    }
-
-                    // get item category
-                    /*cout << "Enter item category: " << endl;
-                     *if not exist
-                     *1. create new
-                     *2. enter other category
-                     *find cat id
-                     *CatId = findCatId(Category, ItemCat)
-                     */
-
-                    // get item description
-                    cout << "Enter item description (Press Enter to skip): " << endl;
-                    cin.ignore();
-                    while (getline(cin, ItemDesc)) {
-                        if (ItemDesc == "") {
-                            cout << "Description skipped" << endl;
-                            break;
-                        }
-                        if (validateLength(ItemDesc)) {
-                            break;
-                        }
-                        cout << "Item description too long" << endl;
-                        cout << "Enter item description (Press Enter to skip): " << endl;
-                    }
-
-                    // add item
-                    try {
-                        mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
-                        mysqlx::Schema DB = session.getSchema("PantryPal");
-                        mysqlx::Table Item = DB.getTable("Item");
-
-                        Item.insert("UserId", "ItemName", "ItemQuant", "ItemDesc")
-                            .values(UserId, ItemName, ItemQuant, ItemDesc)
-                            .execute(); // missing catid
-
-                        cout << "Item added successfully!" << endl;
-                    }
-                    catch (const mysqlx::Error &err) {
-                        cerr << "Connection error: " << err.what() << endl;
-                    }
-                }
-
-                else if (choice == 2) { // update item
-
-                    // get item name
-                    cout << "Enter item name: " << endl;
-                    cin.ignore();
-                    while (getline(cin, ItemName)) {
-                        if (itemNameExists(ItemName, UserId)) {
-                            break;
-                        }
-                        cout << "Item does not exist" << endl;
-                        cout << "Enter a different item name (Maximum characters is 254): ";
-                    }
-
-                    updateItemMenu();
-
-                    while (cin >> choice) {
-                        if (choice == 1) { // update item name
-
-                            // get new item name
-                            cout << "Enter new item name (Maximum characters is 254): ";
-                            cin.ignore();
-                            while (getline(cin, newItemName)) {
-                                if (!validateLength(newItemName)) {
-                                    cout << "Item name too long" << endl;
-                                }
-                                else if (itemNameExists(newItemName, UserId)) {
-                                    cout << "Item already exists" << endl;
-                                }
-                                else {
-                                    break;
-                                }
-                                cout << "Enter new item name (Maximum characters is 254): ";
-                            }
-
-                            // find item id and update item name
-                            try {
-                                mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
-                                mysqlx::Schema DB = session.getSchema("PantryPal");
-                                mysqlx::Table Item = DB.getTable("Item");
-
-                                ItemId = findItemId(Item, ItemName);
-
-                                if (ItemId != -1) {
-                                    Item.update()
-                                        .set("ItemName", newItemName)
-                                        .where("ItemId = :item_id AND UserId = :user_id")
-                                        .bind("item_id", ItemId)
-                                        .bind ("user_id", UserId)
-                                        .execute();
-                                    cout << "Item name changed successfully!" << endl;
-                                }
-
-                                else {
-                                    cout << "Item not found" << endl;
-                                }
-                            }
-                            catch (const mysqlx::Error &err) {
-                                cerr << "Connection error: " << err.what() << endl;
-                            }
-
-                            break;
-                        }
-
-                        if (choice == 2) { // update item quantity
-
-                            // get new item quantity
-                            cout << "Enter new item quantity: ";
-                            while (cin >> ItemQuant) {
-                                if (validateQuantity(ItemQuant) == true) {
-                                    break;
-                                }
-                                cout << "Invalid number" << endl;
-                                cout << "Enter new item name quantity: ";
-                            }
-
-                            // find item id and update item quantity
-                            try {
-                                mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
-                                mysqlx::Schema DB = session.getSchema("PantryPal");
-                                mysqlx::Table Item = DB.getTable("Item");
-
-                                ItemId = findItemId(Item, ItemName);
-
-                                if (ItemId != -1) {
-                                    Item.update()
-                                        .set("ItemQuant", ItemQuant)
-                                        .where("ItemId = :item_id and UserId = :user_id")
-                                        .bind("item_id", ItemId)
-                                        .bind("user_id", UserId)
-                                        .execute();
-                                    cout << "Item quantity changed successfully!" << endl;
-                                }
-
-                                else {
-                                    cout << "Item not found" << endl;
-                                }
-                            }
-                            catch (const mysqlx::Error &err) {
-                                cerr << "Connection error: " << err.what() << endl;
-                            }
-
-                            break;
-                        }
-
-                        if (choice == 3) { // update item category
-                            /*find itemid
-                             *ItemId = findItemId(Item, ItemName)
-                             *get catid
-                             *cout << "Enter new item category << endl;
-                             *while (getline(cin, ItemCat)
-                             *check if length is valid;
-                             */
-                        }
-
-                        if (choice == 4) { // update item description
-
-                            // get item description
-                            cout << "Enter new item description: ";
-                            cin.ignore();
-                            while (getline(cin, ItemDesc)) {
-                                if (validateLength(ItemDesc)) {
-                                    break;
-                                }
-                                cout << "Item description too long" << endl;
-                                cout << "Enter new item description: " << endl;
-                            }
-
-                            // find item description and update item description
-                            try {
-                                mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
-                                mysqlx::Schema DB = session.getSchema("PantryPal");
-                                mysqlx::Table Item = DB.getTable("Item");
-
-                                if (ItemId != -1) {
-                                    Item.update()
-                                        .set("ItemDesc", ItemDesc)
-                                        .where("ItemId = :item_id and UserId = :user_id")
-                                        .bind("item_id", ItemId)
-                                        .bind("user_id", UserId)
-                                        .execute();
-                                    cout << "Item description changed successfully!" << endl;
-                                }
-
-                                else {
-                                    cout << "Item not found" << endl;
-                                }
-                            }
-                            catch (const mysqlx::Error &err) {
-                                cerr << "Connection error: " << err.what() << endl;
-                            }
-
-                            break;
-                        }
-                    }
-                }
-
-                /*choice 3: delete an item, delete all items
-                 *choice 4: retrieve an item, retrieve all items
-                 */
-
-                else {
-                    cout << "Invalid choice" << endl;
-                    itemMenu();
-                    cin >> choice;
-                    continue;
-                }
-
-                printOptions();
-                while (cin >> option) {
-                    if (option == 1) {
-                        itemMenu();
-                        cin >> choice;
-                        break;
-                    }
-                    if (option == 2) {
-                        validChoice = true;
-                        break;
-                    }
-                    cout << "Invalid option" << endl;
-                    printOptions();
-                }
-            }
-            UsingApp = false;
         }
 
-        else if ((UsersResponse == 'N') || (UsersResponse == 'n')) {
-            while (UsingApp) {
-                cout << "Would you like to log into an existing account (Y/N)";
-                cin >> UsersResponse;
-                if (UsersResponse == 'Y' || UsersResponse == 'y') {
+       /*Item entity code goes here (
+            Create
+            Read
+            Update
+            Destroy
+       */
+            mainMenu(UserId);
 
-                    mysqlx::Session session ("127.0.0.1", 33060, "root", "noelmehari1");
+      UsingApp = false;
+    }
 
-                    mysqlx::Schema DB = session.getSchema("PantryPal");
 
-                    mysqlx::Table Users = DB.getTable("User");
+else if (UsersResponse == 'N' || UsersResponse == 'n') {
+    while (UsingApp) {
+        cout << "Would you like to log into an existing account (Y/N)";
+        cin >> UsersResponse;
+        if (UsersResponse == 'Y' || UsersResponse == 'y') {
 
-                    cout << "\nPlease enter your Email: ";
-                    cin >> Email;
+            mysqlx::Session session ("127.0.0.1", 33060, "root", "noelmehari1");
 
-                    auto Read = Users
-                    .select("Password")
-                    .where("Email = :email")
-                    .bind("email", Email)
-                    .execute();
+            mysqlx::Schema DB = session.getSchema("PantryPal");
 
-                    if (Read.count() == 0) {
-                        cout << "Email not found. Please try again." << endl;
+            mysqlx::Table Users = DB.getTable("User");
+
+            cout << "\nPlease enter your Email: ";
+            cin >> Email;
+
+            auto Read = Users
+            .select("Password")
+            .where("Email = :email")
+            .bind("email", Email)
+            .execute();
+
+            if (Read.count() == 0) {
+                cout << "Email not found. Please try again." << endl;
+            }
+            else {
+                cout << "Please enter your password: ";
+                cin >> Password;
+                mysqlx::Row row = Read.fetchOne();
+                string storedPassword = row[0].get<string>();
+
+                for (size_t i = 3; i > 0; i--) {
+                    if (Password == storedPassword) {
+                        cout << "Password is correct!" << endl;
+
+                        UserId = findUserId(Users, Email);
+
+                        cout << "Account logged in successfully!" << endl;
+                        cout << "Welcome back to The Pantry Pal: " << Username << endl;
+                        break;
                     }
                     else {
+                        cout << "Password is incorrect!" << endl;
+                        cout << "Please try again. (Attempts remaining: " << i << ")" << endl;
                         cout << "Please enter your password: ";
                         cin >> Password;
-                        mysqlx::Row row = Read.fetchOne();
-                        string storedPassword = row[0].get<string>();
-
-                        for (size_t i = 3; i > 0; i--) {
-                            if (Password == storedPassword) {
-                                cout << "Password is correct!" << endl;
-
-
-
-                                cout << "Account logged in successfully!" << endl;
-                                cout << "Welcome back to The Pantry Pal: " << Username << endl;
-                                break;
-                            }
-                            else {
-                                cout << "Password is incorrect!" << endl;
-                                cout << "Please try again. (Attempts remaining: " << i << ")" << endl;
-                                cout << "Please enter your password: ";
-                                cin >> Password;
-                                if (i == 1) {
-                                    UsingApp = false;
-                                }
-                            }
+                        if (i == 1) {
+                            UsingApp = false;
                         }
                     }
-
-                    UsingApp = false; //change later
-                }
-                else if (UsersResponse == 'N' || UsersResponse == 'n') {
-                    UsingApp = false;
                 }
             }
+
+            mainMenu(UserId);
+
+            UsingApp = false; //change later
         }
-        else {UsingApp = false;}
+        else if (UsersResponse == 'N' || UsersResponse == 'n') {
+            UsingApp = false;
+        }
     }
+}
+    else {UsingApp = false;}
+}
+
     return 0;
 }
