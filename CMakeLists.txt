@@ -8,7 +8,11 @@ set(MYSQL_CONNECTOR_DIR /opt/homebrew/opt/mysql-connector-c++)
 add_executable(SPU_CSC3220_W26_Team_Blue
         User.cpp
         User.h
-        Main.cpp)
+        Main.cpp
+        Item.h
+        Item.cpp
+        Category.h
+        Category.cpp)
 
 target_include_directories(SPU_CSC3220_W26_Team_Blue PUBLIC
         ${MYSQL_CONNECTOR_DIR}/include
