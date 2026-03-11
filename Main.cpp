@@ -137,7 +137,7 @@ int findCatId(const string &CatName) {
     return -1;
 }
 
-void viewCategories() {
+void printCategories() {
     try {
         mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
         session.sql("USE PantryPal").execute();
@@ -266,7 +266,7 @@ void addItem(const int &UserId) {
         }
 
         // get item category
-        viewCategories();
+        printCategories();
         while (true) {
             cout << "Enter category number: ";
             if (!(cin >> CatId)) {
@@ -555,7 +555,7 @@ void updateItem(const int &UserId) {
 
             else if (choice == 3) {
                 // update item category
-                viewCategories();
+                printCategories();
                 while (true) {
                     cout << "Enter new category number: ";
                     if (!(cin >> CatId)) {
@@ -826,6 +826,57 @@ void deleteAllItems(const int &UserId) {
             break;
         }
         break;
+    }
+}
+
+void viewCategories() {
+    int option;
+
+    try {
+        mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+        session.sql("USE PantryPal").execute();
+
+        auto result = session.sql("SELECT CatId, CatName "
+                                        "FROM Category "
+                                        "ORDER BY CatId")
+                                        .execute();
+
+        cout << "\n=== Categories ===\n";
+
+        auto row = result.fetchOne();
+
+        if (!row) {
+            cout << "\nNo categories available" << endl;
+        }
+
+        else {
+            do {
+                cout << row[0].get<int>() << "   " << row[1].get<string>() << endl;
+            }
+            while (row = result.fetchOne());
+        }
+    }
+    catch (const mysqlx::Error &err) {
+        cerr << "\nConnection error: " << err.what() << endl;
+    }
+
+    while (true) {
+        cout << "\n1. Back to main menu" << endl;
+        cout << "Enter your choice: ";
+
+        if (!(cin >> option)) {
+            cout << "Invalid input!" << endl;
+            cout << "Please enter a number" << endl;
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            continue;
+        }
+
+        if (option == 1) {
+            break;
+        }
+
+        cout << "Invalid choice" << endl;
     }
 }
 
