@@ -14,7 +14,7 @@ class Item {
 
 private:
     int ItemId;
-    time_t created_on;
+    time_t created_on = NULL;
 
 public:
     Item();

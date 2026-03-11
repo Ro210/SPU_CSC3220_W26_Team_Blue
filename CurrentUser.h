@@ -11,22 +11,22 @@
 using std::string;
 
 
-class User {
+class CurrentUser {
 
 private:
     int UserId;
-    time_t created_on;
+    string created_on;
     string Password;
 
 public:
-    User();
+    CurrentUser(string email, string password, string username, int user_id, string created_on);
     string Username;
     string Email;
-    void setEmail(string email);
-    void setPassword(string password);
-    void setUsername(string username);
+    void ChangeEmail(string email);
+    void ChangePassword(string password);
+    void ChangeUsername(string username);
     int getUserId();
-    time_t getCreated_on();
+    string getCreated_on();
     string getPassword();
     string getUsername();
     string getEmail();

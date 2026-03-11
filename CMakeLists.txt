@@ -6,8 +6,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(MYSQL_CONNECTOR_DIR /opt/homebrew/opt/mysql-connector-c++)
 
 add_executable(SPU_CSC3220_W26_Team_Blue
-        User.cpp
-        User.h
+        CurrentUser.cpp
+        CurrentUser.h
         Main.cpp
         Item.h
         Item.cpp

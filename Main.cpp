@@ -6,11 +6,15 @@
 //
 #include <mysqlx/xdevapi.h>
 #include <iostream>
+#include <iomanip>
 #include <algorithm>
 #include <string>
 #include <string_view>
 #include <cctype>
 #include <limits>
+
+#include "CurrentUser.h"
+#include "Item.h"
 
 using std::cout;
 using std::endl;
@@ -29,6 +33,16 @@ void PasswordValidation() {
         "Password must contain at least one uppercase letter\n"
         "Password must contain at least one lowercase letter\n"
         "Enter password here: ";
+}
+
+bool validDate(const std::string& input) {
+
+    std::tm tm = {};
+    std::istringstream ss(input);
+
+    ss >> std::get_time(&tm, "%Y-%m-%d");
+
+    return !ss.fail();
 }
 
 int findUserId(mysqlx::Table &Users, const string &Email) {
@@ -104,11 +118,38 @@ bool categoryExists(const string &CatName, const int &UserId) {
     return false;
 }
 
-void viewItems(const int &UserId) {}
+void viewItems(const int &UserId) {
+
+    mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+    mysqlx::Schema DB = session.getSchema("PantryPal");
+    mysqlx::Table Item = DB.getTable("Item");
+
+    int UserID = 0;
+
+
+    auto result = Item.select("Userid", "ItemName", "Added_on", "ItemQuant", "ItemDesc", "Exp_date")
+          .where("Userid = :userid")
+          .bind("userid", UserID)
+          .execute();
+
+    auto row = result.fetchOne(); //retrieving created on date
+
+    if (row) {
+        cout << "Name: " << row[1].get<string>();
+        cout << "Added on: " << row[2].get<string>();
+        cout << "Quantity:" << row[3].get<int>();
+        cout << "Description:" << row[4].get<string>();
+        cout << "Expiry date:" << row[5].get<string>();
+    }
+    else {
+        cout << "No items found" << endl;
+    }
+}
+
 
 void addItem(const int &UserId) {
     int ItemQuant, option;
-    string ItemName, ItemDesc, ItemCategory;
+    string ItemName, ItemDesc, ItemCategory, ItemExp;
 
     while (true) {
         cout << "\n=== Add Item ===\n";
@@ -167,6 +208,43 @@ void addItem(const int &UserId) {
             }
             cout << "Item description too long" << endl;
         }
+
+
+        while (true) {
+
+            cout << "Input the item's Expiration date (YYYY-MM-DD): ";
+            getline(cin, ItemExp);
+
+            if (ItemExp.empty()) {
+                cout << "Expiration date required\n";
+                continue;
+            }
+
+            if (!validDate(ItemExp)) {
+                cout << "Invalid date format\n";
+                continue;
+            }
+
+            // Get today's date
+            time_t now = time(nullptr);
+            tm* today = localtime(&now);
+
+            char buffer[11];
+            strftime(buffer, sizeof(buffer), "%Y-%m-%d", today);
+
+            string todayStr(buffer);
+
+            if (ItemExp < todayStr) {
+                cout << "Expiration date cannot be before today\n";
+                continue;
+            }
+
+            cout << "Valid expiration date entered.\n";
+            break; // valid input
+
+        }
+
+
 
         // add item
         try {
@@ -896,8 +974,21 @@ void mainMenu(const int &UserId) {
 }
 
 int main() {
+
+    bool UsingApp = true;
+
+    while (UsingApp) {
+
+
+    int UserID;
+    bool validpassword = false;
+    bool validEmail = false;
+    char UsersResponse;
+    string Username, Email, Password, Created_on;
+
+
     try {
-        mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+        mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");  //Creating the user table locally
 
         session.sql("CREATE DATABASE IF NOT EXISTS PantryPal").execute();
         session.sql("USE PantryPal").execute();
@@ -914,24 +1005,25 @@ int main() {
 
         session.sql(
             "CREATE TABLE IF NOT EXISTS Category ("
-            "  CatId INT AUTO_INCREMENT PRIMARY KEY,"
-            "  UserId INT,"
-            "  FOREIGN KEY (Userid) references User(Userid),"
-            "  CatName VARCHAR(255) NOT NULL"
+            "CatId INT AUTO_INCREMENT PRIMARY KEY,"
+            "Userid int,"
+            "FOREIGN Key (Userid) references User(Userid),"
+            "CatName VARCHAR(255) NOT NULL"
             ")"
         ).execute();
 
         session.sql(
             "CREATE TABLE IF NOT EXISTS Item ("
             "  ItemId INT AUTO_INCREMENT PRIMARY KEY,"
-            "  UserId INT,"
+            "  Userid int NOT NULL,"
             "  FOREIGN KEY (Userid) references User(Userid),"
-            "  CatId INT,"
+            "  CatId int NOT NULL,"
             "  FOREIGN KEY (CatId) references Category(CatId),"
             "  ItemName VARCHAR(255) NOT NULL,"
             "  ItemQuant INT NOT NULL,"
             "  ItemDesc VARCHAR(255),"
-            "  created_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            "  Added_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+            "  Exp_date TIMESTAMP NOT NULL"
             ")"
         ).execute();
 
@@ -941,16 +1033,6 @@ int main() {
                         "ORDER BY Userid DESC LIMIT 1")
                    .execute();
 
-
-        auto row = result.fetchOne();
-        if (row) {
-            std::cout << "Wrote row: Userid=" << int(row[0])
-                      << ", Username=" << std::string(row[1])
-                      << ", created_on=" << std::string(row[2])
-                      << ",Email=" <<std::string(row[3])
-                      << ",Password=" << std::string(row[4])
-                      << std::endl;
-        }
 
         // Quick check that SQL works:
         session.sql("SELECT 1").execute();
@@ -965,18 +1047,11 @@ int main() {
         std::cerr << "Connection error: " << err.what() << std::endl;
     }
 
-    int UserId;
-    bool validpassword = false;
-    bool validEmail = false;
-    char UsersResponse;
-    bool UsingApp = true;
-    string Username, Email, Password;
 
 
-    while (UsingApp) {
 
         cout << "Welcome to PantryPal" << endl;
-        cout << "Would you like to create an account? (Y/N)" << endl;
+        cout << "Would you like to create an account? (Y/N)"  << endl;
         cin >> UsersResponse;
         if ((UsersResponse == 'Y') || (UsersResponse == 'y')) {
             cout << "Please create a username (Maximum characters is 254):" << endl;
@@ -987,14 +1062,14 @@ int main() {
                 cin >> Username;
             }
 
-
             PasswordValidation();
-            cin >> Password;
+            getline(cin,Password);
 
             while (!validpassword) {
                 bool hasDigit = false;
                 bool hasUpper = false;
                 bool hasLower = false;
+                bool hasWhiteSpace = true;
 
                 if (Password.length() < 10 || Password.length() > 50) {
                     validpassword = false;
@@ -1003,112 +1078,135 @@ int main() {
                     for (size_t i = 0; i < Password.size(); i++) {
                         if (isdigit(Password[i]))  hasDigit = true;
                         if (isupper(Password[i]))  hasUpper = true;
-                        if (islower(Password[i]))  hasLower = true;}
+                        if (islower(Password[i]))  hasLower = true;
+                        if (isspace(Password[i]))  hasWhiteSpace = false;
+                    }
 
-                    validpassword = hasDigit && hasUpper && hasLower;
+                    validpassword = hasDigit && hasUpper && hasLower && hasWhiteSpace;
                 }
 
                 if (!validpassword) {
                     cout << "Please enter a valid password: ";
-                    cin >> Password;}
+                     getline(cin,Password);
+                }
             }
 
 
 
-        cout << "Please enter your email: " << endl;
-        cin >> Email;
+            cout << "Please enter your email: " << endl;
+           getline(cin,Email);
 
-        while (!validEmail) {
+            while (!validEmail) {
 
-            validEmail = true;
-
-
-            if (Email.length() > 254) {
-                validEmail = false;}
+                validEmail = true;
 
 
-            if (count(Email.begin(), Email.end(), '@') != 1) {
-                validEmail = false;}
-
-            if (Email.find('.') == -1) {
-                validEmail = false;}
-
-
-            size_t atPos = Email.find('@');
-            if (atPos == 0 || atPos == -1) {
-                validEmail = false;}
-
-            for (size_t i = 0; i < Email.size(); i++) {
-                if (isspace(Email[i])) {
-                    validEmail = false;
-                    break;}
-            }
-
-            if (validEmail) {
-                if (!(Email.ends_with("@gmail.com") ||
-                      Email.ends_with("@yahoo.com") ||
-                      Email.ends_with("@hotmail.com") ||
-                      Email.ends_with("@outlook.com"))) {
-
+                if (Email.length() > 254) {
                     validEmail = false;}
-            }
-
-            if (!validEmail) {
-                cout << "Invalid email\n";
-                cout << "Valid email example: johnsmith@outlook.com\n";
-                cout << "Please enter your email: ";
-                cin >> Email;}
 
 
+                if (count(Email.begin(), Email.end(), '@') != 1) {
+                    validEmail = false;}
 
-            mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
-
-            mysqlx::Schema DB = session.getSchema("PantryPal");
-
-            mysqlx::Table Users = DB.getTable("User");
-
-            auto Read = Users
-            .select("Email")
-            .where("Email = :email")
-            .bind("email", Email)
-            .execute();
-
-            if (Read.count() > 0) {
-                cout << "Email already in use.\n";
-                validEmail = false;
-                cout << "Enter a different email: ";
-                cin >> Email;
-            }
+                if (Email.find('.') == -1) {
+                    validEmail = false;}
 
 
-            else {
-                Users
-                .insert("Username", "Email", "Password")
-                .values(Username, Email, Password)
+                size_t atPos = Email.find('@');
+                if (atPos == 0 || atPos == -1) {
+                    validEmail = false;}
+
+                for (size_t i = 0; i < Email.size(); i++) {
+                    if (isspace(Email[i])) {
+                        validEmail = false;
+                        break;}
+                }
+
+                if (validEmail) {
+                    if (!(Email.ends_with("@gmail.com") ||
+                          Email.ends_with("@yahoo.com") ||
+                          Email.ends_with("@hotmail.com") ||
+                          Email.ends_with("@outlook.com"))) {
+
+                        validEmail = false;}
+                }
+
+                if (!validEmail) {
+                    cout << "Invalid email\n";
+                    cout << "Valid email example: johnsmith@outlook.com\n";
+                    cout << "Please enter your email: ";
+                    getline(cin,Email);}
+
+
+
+                mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+
+                mysqlx::Schema DB = session.getSchema("PantryPal");
+
+                mysqlx::Table Users = DB.getTable("User");
+
+                auto Read = Users
+                .select("Email")
+                .where("Email = :email" )
+                .bind("email", Email)
                 .execute();
 
-                UserId = findUserId(Users, Email);
+                if (Read.count() > 0) {
+                    cout << "Email already in use.\n";
+                    validEmail = false;
+                    cout << "Enter a different email: ";
+                    cin >> Email;
+                }
 
-            cout << "Account created successfully!" << endl;
-            cout << "Welcome to The Pantry Pal: " << Username << endl;
+                else if (validEmail){
+                    Users
+                    .insert("Username", "Email", "Password")
+                    .values(Username, Email, Password)
+                    .execute();
+
+                    UserID = findUserId(Users, Email);
+
+                    auto result = Users.select("Email", "DATE_FORMAT (created_on, '%Y-%m-%d %H:%i:%s')")
+                          .where("Email = :email")
+                          .bind("email", Email)
+                          .execute();
+
+                    auto row = result.fetchOne(); //retrieving created on date
+                    if (row) {
+                        Created_on = row[1].get<string>();
+                    }
+
+                        CurrentUser Profile (Email, Password, Username, UserID, Created_on);
+
+                        cout << "Account created successfully!" << endl;
+                        cout << "Welcome to The Pantry Pal: " << Profile.getUsername() << endl;
+                    }
+                }
+
+                /*Item entity code goes here (
+                     Create
+                     Read
+                     Update
+                     Destroy
+                */
+
+                mainMenu(UserID); // only if email is valid
+
+
+                UsingApp = false;
+
+
             }
 
-        }
-
-       /*Item entity code goes here (
-            Create
-            Read
-            Update
-            Destroy
-       */
-            mainMenu(UserId);
-
-      UsingApp = false;
-    }
 
 
 else if (UsersResponse == 'N' || UsersResponse == 'n') {
     while (UsingApp) {
+
+bool validlogin = false;
+string Username, Email, Password, Created_on;
+int UserId;
+
         cout << "Would you like to log into an existing account (Y/N)";
         cin >> UsersResponse;
         if (UsersResponse == 'Y' || UsersResponse == 'y') {
@@ -1122,17 +1220,26 @@ else if (UsersResponse == 'N' || UsersResponse == 'n') {
             cout << "\nPlease enter your Email: ";
             cin >> Email;
 
-            auto Read = Users
-            .select("Password")
-            .where("Email = :email")
-            .bind("email", Email)
-            .execute();
+        while (validlogin == false){
 
-            if (Read.count() == 0) {
-                cout << "Email not found. Please try again." << endl;
-            }
+            validlogin = true;
+
+                auto Read = Users
+                .select("Password")
+                .where("Email = :email")
+                .bind("email", Email)
+                .execute();
+
+                if (Read.count() == 0) {
+                    cout << "Email not found. Please try again." << endl; //prompting for email login check
+                    validlogin = false;
+                    cout << "Enter your Email: ";
+                    cin >> Email;
+                }
+
+
             else {
-                cout << "Please enter your password: ";
+                cout << "Please enter your password: "; //prompting for password check
                 cin >> Password;
                 mysqlx::Row row = Read.fetchOne();
                 string storedPassword = row[0].get<string>();
@@ -1141,25 +1248,47 @@ else if (UsersResponse == 'N' || UsersResponse == 'n') {
                     if (Password == storedPassword) {
                         cout << "Password is correct!" << endl;
 
+
+
+                        auto result = Users.select("Username", "DATE_FORMAT (created_on, '%Y-%m-%d %H:%i:%s')")
+                        .where("Email = :email")
+                        .bind("email", Email)
+                        .execute();
+
+                        auto row = result.fetchOne();
+                        if (row) {
+                            Username = row[0].get<string>();
+                            Created_on = row[1].get<string>();
+                        }
+
                         UserId = findUserId(Users, Email);
 
+
+                    CurrentUser Profile (Email, Password, Username, UserId, Created_on);
+
+
+
                         cout << "Account logged in successfully!" << endl;
-                        cout << "Welcome back to The Pantry Pal: " << Username << endl;
+                        cout << "Welcome back to The Pantry Pal: " << Profile.getUsername() << endl; //Adjust this code to make it output username in the if-statement
                         break;
+
                     }
                     else {
                         cout << "Password is incorrect!" << endl;
-                        cout << "Please try again. (Attempts remaining: " << i << ")" << endl;
+                        cout << "Please try again. (Attempts remaining: " << i - 1 << ")" << endl;
                         cout << "Please enter your password: ";
                         cin >> Password;
                         if (i == 1) {
                             UsingApp = false;
+                            cerr << "Too many incorrect attempts. Please try again later." << endl;
+                            return 0;
                         }
                     }
                 }
             }
+        }
 
-            mainMenu(UserId);
+           //mainMenu(UserId);
 
             UsingApp = false; //change later
         }
