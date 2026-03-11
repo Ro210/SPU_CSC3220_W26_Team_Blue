@@ -59,10 +59,11 @@ int findUserId(mysqlx::Table &Users, const string &Email) {
     return -1;
 }
 
-int findItemId(mysqlx::Table &Item, const string &ItemName) {
+int findItemId(mysqlx::Table &Item, const string &ItemName, const int &UserId) {
     auto result = Item.select("ItemID")
-    .where("ItemName = :item_name") // and user id = user id
+    .where("ItemName = :item_name AND UserId = :user_id")
     .bind("item_name", ItemName)
+    .bind("user_id", UserId)
     .execute();
 
     auto row = result.fetchOne();
@@ -119,35 +120,66 @@ bool categoryExists(const string &CatName, const int &UserId) {
 }
 
 void viewItems(const int &UserId) {
+    int option;
 
-    mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
-    mysqlx::Schema DB = session.getSchema("PantryPal");
-    mysqlx::Table Item = DB.getTable("Item");
+    try {
+        mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+        session.sql("USE PantryPal").execute();
 
-    int UserID = 0;
+        auto result = session.sql("SELECT ItemName, ItemQuant, ItemDesc, CatName "
+                                        "FROM Item "
+                                        "JOIN Category ON Item.CatId = Category.CatId "
+                                        "WHERE UserId = ?")
+                                        .bind(UserId)
+                                        .execute();
 
+        cout << "\n=== Your Items ===\n";
 
-    auto result = Item.select("Userid", "ItemName", "Added_on", "ItemQuant", "ItemDesc", "Exp_date")
-          .where("Userid = :userid")
-          .bind("userid", UserID)
-          .execute();
+        auto row = result.fetchOne();
 
-    auto row = result.fetchOne(); //retrieving created on date
+        if (!row) {
+            cout << "\n You have no items" << endl;
+        }
 
-    if (row) {
-        cout << "Name: " << row[1].get<string>();
-        cout << "Added on: " << row[2].get<string>();
-        cout << "Quantity:" << row[3].get<int>();
-        cout << "Description:" << row[4].get<string>();
-        cout << "Expiry date:" << row[5].get<string>();
+        else {
+            do {
+                cout << "Category: " << static_cast<string>(row[3]) << endl;
+                cout << " - " << static_cast<string>(row[0])
+                     << " (" << static_cast<int>(row[1]) << ")" << endl;
+                if (!row[2].isNull()) {
+                    cout << "   Description: " << static_cast<string>(row[2]) << endl;
+                }
+            }
+            while (row = result.fetchOne());
+        }
     }
-    else {
-        cout << "No items found" << endl;
+    catch (const mysqlx::Error &err) {
+        cerr << "\nConnection error: " << err.what() << endl;
+    }
+
+    while (true) {
+        cout << "\n1. Back to main menu" << endl;
+        cout << "Enter your choice: ";
+
+        if (!(cin >> option)) {
+            cout << "Invalid input!" << endl;
+            cout << "Please enter a number" << endl;
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            continue;
+        }
+
+        if (option == 1) {
+            break;
+        }
+
+        cout << "Invalid choice" << endl;
     }
 }
 
-
 void addItem(const int &UserId) {
+    int ItemQuant, CatId, option;
+    string ItemName, ItemDesc, ItemCategory;
     int ItemQuant, option;
     string ItemName, ItemDesc, ItemCategory, ItemExp;
 
@@ -199,7 +231,7 @@ void addItem(const int &UserId) {
             cout << "Enter item description (Press Enter to skip): ";
             cin.ignore(numeric_limits<streamsize>::max(), '\n');
             getline(cin, ItemDesc);
-            if (ItemDesc == "") {
+            if (ItemDesc.empty()) {
                 cout << "Description skipped" << endl;
                 break;
             }
@@ -252,9 +284,9 @@ void addItem(const int &UserId) {
             mysqlx::Schema DB = session.getSchema("PantryPal");
             mysqlx::Table Item = DB.getTable("Item");
 
-            Item.insert("UserId", "ItemName", "ItemQuant", "ItemDesc")
-                .values(UserId, ItemName, ItemQuant, ItemDesc)
-                .execute(); // missing catid
+            Item.insert("UserId", "CatId", "ItemName", "ItemQuant", "ItemDesc")
+                .values(UserId, CatId, ItemName, ItemQuant, ItemDesc)
+                .execute();
 
             cout << "\nItem added successfully!" << endl;
         }
@@ -296,13 +328,34 @@ void updateItem(const int &UserId) {
 
     int choice, ItemId, ItemQuant, newItemQuant, option;
     string ItemName, ItemCategory, ItemDesc, newItemName, newItemCat, newItemDesc;
-    // include case when there's no item to update
 
     while (true) {
 
         cout << "\n=== Update Item ===\n";
-        // get item name
 
+        try {
+            mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+            mysqlx::Schema DB = session.getSchema("PantryPal");
+            mysqlx::Table Item = DB.getTable("Item");
+
+            auto result = Item.select("COUNT(*)")
+                .where("UserID = :user_id")
+                .bind("user_id", UserId)
+                .execute();
+            auto row = result.fetchOne();
+            int count = row[0];
+
+            if (count == 0) {
+                cout << "\nYou have no items to update" << endl;
+                cout << "Heading back to main menu" << endl;
+                break;
+            }
+        }
+        catch (const mysqlx::Error &err) {
+            cerr << "\nConnection error: " << err.what() << endl;
+        }
+
+        // get item name
         while (true) {
             cout << "Enter item name: ";
             cin.ignore(numeric_limits<streamsize>::max(), '\n');
@@ -314,6 +367,8 @@ void updateItem(const int &UserId) {
         }
 
         // print item details TO BE IMPLEMENT
+
+        // update expiration date TO BE IMPLEMENT
 
         while (true) {
 
@@ -338,7 +393,7 @@ void updateItem(const int &UserId) {
                 mysqlx::Schema DB = session.getSchema("PantryPal");
                 mysqlx::Table Item = DB.getTable("Item");
 
-                ItemId = findItemId(Item, ItemName);
+                ItemId = findItemId(Item, ItemName, UserId);
             }
             catch (const mysqlx::Error &err) {
                 cerr << "\nConnection error: " << err.what() << endl;
@@ -443,12 +498,13 @@ void updateItem(const int &UserId) {
 
             else if (choice == 3) {
                 // update item category
-                /*find itemid
-                 *ItemId = findItemId(Item, ItemName)
-                 *get catid
-                 *cout << "Enter new item category << endl;
+                /*cout << "Enter new item category << endl;
                  *while (getline(cin, ItemCat)
-                 *check if length is valid;
+                 *if not exist
+                 *1. enter another
+                 *2. ?
+                 *get CatID
+                 *update
                  */
             }
 
@@ -483,6 +539,7 @@ void updateItem(const int &UserId) {
                             .bind("user_id", UserId)
                             .execute();
                         cout << "\nItem description changed successfully!" << endl;
+                        ItemDesc = newItemDesc;
                     }
 
                     else {
@@ -542,7 +599,28 @@ void deleteItem(const int &UserId) {
     while (true) {
         cout << "\n=== Delete Item ===\n";
 
-        // include case when there's no item to delete TO BE IMPLEMENT
+        try {
+            mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+            mysqlx::Schema DB = session.getSchema("PantryPal");
+            mysqlx::Table Item = DB.getTable("Item");
+
+            auto result = Item.select("COUNT(*)")
+                .where("UserID = :user_id")
+                .bind("user_id", UserId)
+                .execute();
+            auto row = result.fetchOne();
+            int count = row[0];
+
+            if (count == 0) {
+                cout << "\nYou have no items to delete" << endl;
+                cout << "Heading back to main menu" << endl;
+                break;
+            }
+        }
+        catch (const mysqlx::Error &err) {
+            cerr << "\nConnection error: " << err.what() << endl;
+        }
+
         // get item name
         while (true) {
             cout << "Enter item name: ";
@@ -562,7 +640,22 @@ void deleteItem(const int &UserId) {
 
             if ((answer == 'Y') || (answer == 'y')) {
                 // delete item
-                // TO BE IMPLEMENT
+                try {
+                    mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+                    mysqlx::Schema DB = session.getSchema("PantryPal");
+                    mysqlx::Table Item = DB.getTable("Item");
+
+                    Item.remove()
+                        .where("ItemName = :item_name AND UserID = :user_id")
+                        .bind("item_name", ItemName)
+                        .bind("user_id", UserId)
+                        .execute();
+
+                    cout << "\nItem deleted successfully!" << endl;
+                }
+                catch (const mysqlx::Error &err) {
+                    cerr << "\nConnection error: " << err.what() << endl;
+                }
                 break;
             }
 
@@ -612,16 +705,51 @@ void deleteAllItems(const int &UserId) {
     while (true) {
         cout << "\n=== Delete All Items ===\n";
 
-        // include case when there's no item to delete
+        try {
+            mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+            mysqlx::Schema DB = session.getSchema("PantryPal");
+            mysqlx::Table Item = DB.getTable("Item");
 
+            auto result = Item.select("COUNT(*)")
+                .where("UserID = :user_id")
+                .bind("user_id", UserId)
+                .execute();
+            auto row = result.fetchOne();
+            int count = row[0];
+
+            if (count == 0) {
+                cout << "\nYou have no items to delete" << endl;
+                cout << "Heading back to main menu" << endl;
+                break;
+            }
+        }
+        catch (const mysqlx::Error &err) {
+            cerr << "\nConnection error: " << err.what() << endl;
+        }
+
+        // confirm
         while (true) {
             cout << "\nDelete all items? (Y/N)" << endl;
             cin >> answer;
             cin.ignore(numeric_limits<streamsize>::max(), '\n');
 
             if ((answer == 'Y') || (answer == 'y')) {
-                // delete item
-                // TO BE IMPLEMENT
+                // delete all items
+                try {
+                    mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+                    mysqlx::Schema DB = session.getSchema("PantryPal");
+                    mysqlx::Table Item = DB.getTable("Item");
+
+                    Item.remove()
+                        .where("UserID = :user_id")
+                        .bind("user_id", UserId)
+                        .execute();
+
+                    cout << "\nAll items deleted!" << endl;
+                }
+                catch (const mysqlx::Error &err) {
+                    cerr << "\nConnection error: " << err.what() << endl;
+                }
             }
 
             else if ((answer == 'N') || (answer == 'n')) {
@@ -637,7 +765,57 @@ void deleteAllItems(const int &UserId) {
     }
 }
 
-void viewCategories(const int &UserId) {}
+void viewCategories(const int &UserId) {
+    int option;
+
+    try {
+        mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+        session.sql("USE PantryPal").execute();
+
+        auto result = session.sql("SELECT CatId, CatName "
+                                        "FROM Category "
+                                        "WHERE UserId = ?")
+                                        .bind(UserId)
+                                        .execute();
+
+        cout << "\n=== Categories ===\n";
+
+        auto row = result.fetchOne();
+
+        if (!row) {
+            cout << "\n No categories available" << endl;
+        }
+
+        else {
+            do {
+                cout << static_cast<int>(row[0]) << "   " << static_cast<string>(row[1]) << endl;
+            }
+            while (row = result.fetchOne());
+        }
+    }
+    catch (const mysqlx::Error &err) {
+        cerr << "\nConnection error: " << err.what() << endl;
+    }
+
+    while (true) {
+        cout << "\n1. Back to main menu" << endl;
+        cout << "Enter your choice: ";
+
+        if (!(cin >> option)) {
+            cout << "Invalid input!" << endl;
+            cout << "Please enter a number" << endl;
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            continue;
+        }
+
+        if (option == 1) {
+            break;
+        }
+
+        cout << "Invalid choice" << endl;
+    }
+}
 
 void addCategories(const int & UserId) {
     int option;
@@ -712,10 +890,31 @@ void addCategories(const int & UserId) {
 void updateCategories(const int &UserId) {
     int option;
     string CatName, newCatName;
-    // include case when there's no category to update
 
     while (true) {
         cout << "\n=== Update Category ===\n";
+
+        try {
+            mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+            mysqlx::Schema DB = session.getSchema("PantryPal");
+            mysqlx::Table Category = DB.getTable("Category");
+
+            auto result = Category.select("COUNT(*)")
+                .where("UserID = :user_id")
+                .bind("user_id", UserId)
+                .execute();
+            auto row = result.fetchOne();
+            int count = row[0];
+
+            if (count == 0) {
+                cout << "\nYou have no categories to update" << endl;
+                cout << "Heading back to main menu" << endl;
+                break;
+            }
+        }
+        catch (const mysqlx::Error &err) {
+            cerr << "\nConnection error: " << err.what() << endl;
+        }
 
         // get category name
         while (true) {
@@ -739,7 +938,7 @@ void updateCategories(const int &UserId) {
             else if (newCatName == CatName) {
                 break;
             }
-            else if (itemExists(newCatName, UserId)) {
+            else if (categoryExists(newCatName, UserId)) {
                 cout << "\nCategory already exists" << endl;
             }
             else {
@@ -808,7 +1007,28 @@ void deleteCategories(const int &UserId) {
     while (true) {
         cout << "\n=== Delete Category ===\n";
 
-        // include case when there's no category to delete TO BE IMPLEMENT
+        try {
+            mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+            mysqlx::Schema DB = session.getSchema("PantryPal");
+            mysqlx::Table Category = DB.getTable("Category");
+
+            auto result = Category.select("COUNT(*)")
+                .where("UserID = :user_id")
+                .bind("user_id", UserId)
+                .execute();
+            auto row = result.fetchOne();
+            int count = row[0];
+
+            if (count == 0) {
+                cout << "\nYou have no categories to delete" << endl;
+                cout << "Heading back to main menu" << endl;
+                break;
+            }
+        }
+        catch (const mysqlx::Error &err) {
+            cerr << "\nConnection error: " << err.what() << endl;
+        }
+
         // get category name
         while (true) {
             cout << "Enter category name: ";
@@ -828,7 +1048,22 @@ void deleteCategories(const int &UserId) {
 
             if ((answer == 'Y') || (answer == 'y')) {
                 // delete category
-                // TO BE IMPLEMENT
+                try {
+                    mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+                    mysqlx::Schema DB = session.getSchema("PantryPal");
+                    mysqlx::Table Category = DB.getTable("Category");
+
+                    Category.remove()
+                            .where("CatName = :cat_name AND UserID = :user_id")
+                            .bind("cat_name", CatName)
+                            .bind("user_id", UserId)
+                            .execute();
+
+                    cout << "\nCategory deleted successfully!" << endl;
+                }
+                catch (const mysqlx::Error &err) {
+                    cerr << "\nConnection error: " << err.what() << endl;
+                }
                 break;
             }
 
