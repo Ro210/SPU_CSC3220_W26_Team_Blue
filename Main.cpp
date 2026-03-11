@@ -174,7 +174,7 @@ void viewItems(const int &UserId) {
         mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
         session.sql("USE PantryPal").execute();
 
-        auto result = session.sql("SELECT ItemName, CatName, ItemQuant, ItemDesc, Item.created_on, exp_date "
+        auto result = session.sql("SELECT ItemName, CatName, ItemQuant, ItemDesc, Item.Added_on, Item.Exp_date "
                                         "FROM Item "
                                         "JOIN Category ON Item.CatId = Category.CatId "
                                         "JOIN Expiration ON Item.ItemId = Expiration.ItemId "
@@ -230,7 +230,7 @@ void viewItems(const int &UserId) {
 
 void addItem(const int &UserId) {
     int ItemQuant, CatId, option;
-    string ItemName, ItemDesc, ItemCategory, CatName, ItemExp;
+    string ItemName, ItemDesc, ItemCategory, CatName, ItemExp, Added_on;
 
     while (true) {
         cout << "\n=== Add Item ===\n";
@@ -341,8 +341,8 @@ void addItem(const int &UserId) {
             mysqlx::Schema DB = session.getSchema("PantryPal");
             mysqlx::Table Item = DB.getTable("Item");
 
-            Item.insert("UserId", "CatId", "ItemName", "ItemQuant", "ItemDesc")// needs expiration and added on date (wont compile otherwise)
-                .values(UserId, CatId, ItemName, ItemQuant, ItemDesc)
+            Item.insert("UserId", "CatId", "ItemName", "ItemQuant", "ItemDesc", "Exp_date")
+                .values(UserId, CatId, ItemName, ItemQuant, ItemDesc, ItemExp)
                 .execute();
 
             cout << "\nItem added successfully!" << endl;
@@ -415,7 +415,7 @@ void updateItem(const int &UserId) {
         // get item name
         while (true) {
             cout << "Enter item name: ";
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cin.ignore(numeric_limits<streamsize>::max());
             getline(cin, ItemName);
             if (itemExists(ItemName, UserId)) {
                 break;
@@ -940,13 +940,14 @@ int main() {
 
         session.sql(
             "CREATE TABLE IF NOT EXISTS Expiration ("
-            "  exp_alert INT PRIMARY KEY,"
+            "  exp_alert INT PRIMARY KEY,"  // 0 or 1 (1:for true is expired and 0:for false is not yet expired)
             "  ItemId INT,"
             "  FOREIGN KEY (ItemId) references Item(ItemId),"
-            "  exp_date date NOT NULL,"
-            "  is_dismissed bool,"
-            "  created_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL," // i'm not sure
-            "  updated_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            "  Exp_date TIMESTAMP NOT NULL,"
+            "  FOREIGN KEY (Exp_date) references Item(Exp_date),"
+            "  is_dismissed INT," //if the item was deleted then this should equal 1, if not then it should equal 0
+            "  Added_on TIMESTAMP NOT NULL,"
+            "  FOREIGN KEY (Added_on) references Item(Added_on)"
             ")"
         ).execute();
 
