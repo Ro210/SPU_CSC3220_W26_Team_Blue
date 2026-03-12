@@ -384,7 +384,7 @@ void addItem(const int &UserId) {
 void updateItem(const int &UserId) {
 
     int choice, ItemId, ItemQuant, newItemQuant, option, CatId;
-    string ItemName, ItemCategory, ItemDesc, newItemName, newItemCat, newItemDesc;
+    string ItemName, ItemCategory, ItemDesc, newItemName, newItemCat, newItemDesc, newItemExp; // mod 1 newItemExp variable added
 
     while (true) {
 
@@ -415,7 +415,7 @@ void updateItem(const int &UserId) {
         // get item name
         while (true) {
             cout << "Enter item name: ";
-            cin.ignore(numeric_limits<streamsize>::max());
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');// mod 4
             getline(cin, ItemName);
             if (itemExists(ItemName, UserId)) {
                 break;
@@ -425,7 +425,6 @@ void updateItem(const int &UserId) {
 
         // print item details TO BE IMPLEMENT
 
-        // update expiration date TO BE IMPLEMENT
 
         while (true) {
 
@@ -433,7 +432,8 @@ void updateItem(const int &UserId) {
             cout << "2. Update item quantity" << endl;
             cout << "3. Update item category" << endl;
             cout << "4. Update item description" << endl;
-            cout << "5. Done updating" << endl;
+            cout << "5. Update expiration date" << endl; // mod 2
+            cout << "6. Done updating" << endl;
             cout << "Enter your choice: ";
 
             if (!(cin >> choice)) {
@@ -616,10 +616,55 @@ void updateItem(const int &UserId) {
                 }
             }
 
-            else if (choice == 5) {
-                break;
+
+            else if (choice == 5) { // update expiration date // mod 3
+
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+                while (true) {
+                    cout << "Enter new expiration date (YYYY-MM-DD): ";
+                    getline(cin, newItemExp);
+
+                    if (newItemExp.empty()) {
+                        cout << "\nExpiration date required" << endl;
+                        continue;
+                    }
+
+                    if (!validDate(newItemExp)) {
+                        cout << "\nInvalid date format" << endl;
+                        continue;
+                    }
+
+                    break;
+                }
+
+                try {
+                    mysqlx::Session session("127.0.0.1", 33060, "root", "noelmehari1");
+                    mysqlx::Schema DB = session.getSchema("PantryPal");
+                    mysqlx::Table Item = DB.getTable("Item");
+
+                    if (ItemId != -1) {
+                        Item.update()
+                            .set("Exp_date", newItemExp)
+                            .where("ItemId = :item_id AND UserId = :user_id")
+                            .bind("item_id", ItemId)
+                            .bind("user_id", UserId)
+                            .execute();
+
+                        cout << "\nExpiration date changed successfully!" << endl;
+                    }
+                    else {
+                        cout << "\nItem not found" << endl;
+                    }
+                }
+                catch (const mysqlx::Error &err) {
+                    cerr << "\nConnection error: " << err.what() << endl;
+                }
             }
 
+            else if (choice == 6) {
+                break;
+            }
             else {
                 cout << "Invalid choice" << endl;
             }
